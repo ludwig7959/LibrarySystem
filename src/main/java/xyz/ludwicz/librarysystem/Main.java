@@ -1,6 +1,6 @@
-package xyz.ludwicz.shoppingmall;
+package xyz.ludwicz.librarysystem;
 
-import xyz.ludwicz.shoppingmall.gui.LoginPage;
+import xyz.ludwicz.librarysystem.gui.LoginPage;
 
 public class Main {
 

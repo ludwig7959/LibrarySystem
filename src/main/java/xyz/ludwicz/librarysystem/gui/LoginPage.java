@@ -1,4 +1,4 @@
-package xyz.ludwicz.shoppingmall.gui;
+package xyz.ludwicz.librarysystem.gui;
 
 import javax.swing.*;
 import java.awt.*;
