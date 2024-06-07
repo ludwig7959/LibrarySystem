@@ -1,6 +1,7 @@
 package xyz.ludwicz.librarysystem.gui;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -11,9 +12,9 @@ public class LoginPage extends JPanel {
     private JPasswordField passwordField;
 
     public LoginPage() {
-        setSize(400, 300);
-
-        setLayout(new GridLayout(3, 2));
+        setBorder(new EmptyBorder(10, 10, 10, 10));
+        setLayout(new GridLayout(3, 2, 10, 10));
+        setSize(900, 300);
 
         JLabel usernameLabel = new JLabel("Username:");
         JLabel passwordLabel = new JLabel("Password:");
