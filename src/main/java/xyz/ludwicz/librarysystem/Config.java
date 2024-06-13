@@ -66,7 +66,7 @@ public class Config {
     }
 
     private static JSONObject createDefaultConfig(File configFile) throws IOException, ParseException {
-        InputStream inputStream = Main.class.getResourceAsStream("/" + CONFIG_FILE_NAME);
+        InputStream inputStream = LibrarySystem.class.getResourceAsStream("/" + CONFIG_FILE_NAME);
         if (inputStream == null) {
             throw new IOException("Resource " + CONFIG_FILE_NAME + " not found in JAR.");
         }

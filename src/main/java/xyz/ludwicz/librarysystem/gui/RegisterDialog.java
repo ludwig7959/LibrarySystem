@@ -1,9 +1,11 @@
 package xyz.ludwicz.librarysystem.gui;
 
-import xyz.ludwicz.librarysystem.Utils;
-import xyz.ludwicz.librarysystem.database.DatabaseManager;
+import xyz.ludwicz.librarysystem.LibrarySystem;
+import xyz.ludwicz.librarysystem.util.Utils;
 import xyz.ludwicz.librarysystem.database.SQLTask;
 import xyz.ludwicz.librarysystem.database.SQLTaskProcessor;
+import xyz.ludwicz.librarysystem.gui.models.NoSpacesDocumentFilter;
+import xyz.ludwicz.librarysystem.gui.models.PhoneNumberDocumentFilter;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -14,7 +16,6 @@ import java.awt.event.ActionListener;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 public class RegisterDialog extends JDialog {
 
@@ -25,18 +26,17 @@ public class RegisterDialog extends JDialog {
     private JPasswordField passwordTextField;
 
     public RegisterDialog() {
+        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setBounds(100, 100, 240, 260);
         getContentPane().setLayout(new BorderLayout());
         contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
         getContentPane().add(contentPanel, BorderLayout.CENTER);
         contentPanel.setLayout(null);
 
-        {
-            JLabel registerLabel = new JLabel("회원가입");
-            registerLabel.setBounds(78, 10, 79, 22);
-            registerLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
-            contentPanel.add(registerLabel);
-        }
+        JLabel registerLabel = new JLabel("회원가입");
+        registerLabel.setBounds(78, 10, 79, 22);
+        registerLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        contentPanel.add(registerLabel);
 
         JLabel idLabel = new JLabel("아이디");
         idLabel.setBounds(12, 42, 50, 15);
@@ -135,7 +135,7 @@ public class RegisterDialog extends JDialog {
     }
 
     private void registerUser(String id, char[] password, String name, String phoneNumber) {
-        SQLTaskProcessor taskProcessor = DatabaseManager.getInstance().getTaskProcessor();
+        SQLTaskProcessor taskProcessor = LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor();
 
         SQLTask idCheckTask = new SQLTask(SQLTask.TaskType.QUERY, "SELECT COUNT(*) AS count FROM Librarian WHERE librarianId = ?", id);
         SQLTask phoneNumberCheckTask = new SQLTask(SQLTask.TaskType.QUERY, "SELECT COUNT(*) AS count FROM Librarian WHERE phone = ?", phoneNumber);
@@ -152,8 +152,8 @@ public class RegisterDialog extends JDialog {
 
                 SQLTask registerTask = new SQLTask(SQLTask.TaskType.UPDATE, "INSERT INTO Librarian (librarianId, password, name, phone) VALUES (?, ?, ?, ?)",
                         id, encryptedPassword, name, phoneNumber);
-                Future<Object> insertResult = taskProcessor.submitTask(registerTask);
-                if ((Boolean) insertResult.get()) {
+                boolean registerResult = (Boolean) taskProcessor.submitTask(registerTask).get();
+                if (registerResult) {
                     JOptionPane.showMessageDialog(RegisterDialog.this, "회원가입이 완료되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
                     dispose();
                 } else {

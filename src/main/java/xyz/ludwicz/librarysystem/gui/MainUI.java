@@ -1,11 +1,27 @@
 package xyz.ludwicz.librarysystem.gui;
 
+import org.hibernate.Session;
+import xyz.ludwicz.librarysystem.LibrarySystem;
+import xyz.ludwicz.librarysystem.data.Category;
+import xyz.ludwicz.librarysystem.data.Publisher;
+import xyz.ludwicz.librarysystem.database.SQLTask;
+import xyz.ludwicz.librarysystem.database.SQLTask.TaskType;
+import xyz.ludwicz.librarysystem.gui.models.MapTableModel;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 
 public class MainUI extends JFrame {
 
@@ -14,27 +30,21 @@ public class MainUI extends JFrame {
     private JTable bookListTable;
     private JTable memberListTable;
     private JTextField memberSearchTextField;
+    private JComboBox<PublisherSearchOption> publisherSearchOptionComboBox;
     private JTextField publisherSearchTextField;
     private JTable publisherListTable;
+    private MapTableModel<Integer> publisherListModel;
     private JTextField categorySearchTextField;
     private JTable categoryListTable;
+    private MapTableModel<Integer> categoryListModel;
 
-    public static void main(String[] args) {
+    private BookAddDialog bookAddDialog = null;
+    private JDialog childDialog = null;
 
-        EventQueue.invokeLater(new Runnable() {
-            public void run() {
-                try {
-                    MainUI frame = new MainUI();
-                    frame.setVisible(true);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-    }
 
     public MainUI() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setResizable(false);
         setBounds(100, 100, 650, 400);
         contentPane = new JPanel();
         contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
@@ -44,6 +54,9 @@ public class MainUI extends JFrame {
 
         JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
         contentPane.add(tabbedPane);
+
+        DefaultTableCellRenderer leftRenderer = new DefaultTableCellRenderer();
+        leftRenderer.setHorizontalAlignment(SwingConstants.LEFT);
 
         JPanel bookPanel = new JPanel();
         tabbedPane.addTab("도서", null, bookPanel, null);
@@ -72,9 +85,19 @@ public class MainUI extends JFrame {
         modifyBookButton.setBounds(328, 6, 85, 23);
         bookPanel.add(modifyBookButton);
 
-        JButton bookAddButton = new JButton("추가");
-        bookAddButton.setBounds(425, 6, 85, 23);
-        bookPanel.add(bookAddButton);
+        JButton addBookButton = new JButton("추가");
+        addBookButton.setBounds(425, 6, 85, 23);
+        addBookButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (bookAddDialog != null && bookAddDialog.isDisplayable()) {
+                    return;
+                }
+                bookAddDialog = new BookAddDialog();
+                bookAddDialog.setVisible(true);
+            }
+        });
+        bookPanel.add(addBookButton);
 
         JButton removeBookButton = new JButton("제거");
         removeBookButton.setActionCommand("수정");
@@ -90,7 +113,7 @@ public class MainUI extends JFrame {
                 new Object[][]{
                 },
                 new String[]{
-                        "\uB3C4\uC11C \uBC88\uD638", "\uC81C\uBAA9", "\uC800\uC790", "\uCD9C\uD310\uC0AC", "\uC0C1\uD0DC"
+                        "도서 번호", "제목", "저자", "출판사", "상태"
                 }
         ) {
             Class[] columnTypes = new Class[]{
@@ -111,12 +134,12 @@ public class MainUI extends JFrame {
         bookListTable.getColumnModel().getColumn(4).setPreferredWidth(50);
         bookListScrollPane.setViewportView(bookListTable);
 
-        JComboBox bookSearchOptionComboBox = new JComboBox();
-        bookSearchOptionComboBox.setBounds(12, 289, 70, 23);
+        JComboBox<BookSearchOption> bookSearchOptionComboBox = new JComboBox<>(BookSearchOption.values());
+        bookSearchOptionComboBox.setBounds(12, 289, 80, 23);
         bookPanel.add(bookSearchOptionComboBox);
 
         bookSearchTextField = new JTextField();
-        bookSearchTextField.setBounds(94, 290, 247, 21);
+        bookSearchTextField.setBounds(104, 290, 237, 21);
         bookPanel.add(bookSearchTextField);
         bookSearchTextField.setColumns(10);
         bookSearchButton.setBounds(353, 289, 70, 23);
@@ -167,11 +190,9 @@ public class MainUI extends JFrame {
         memberPanel.add(memberListScrollPane);
 
         memberListTable = new JTable();
-        memberListTable.setModel(new DefaultTableModel(
-                new Object[][]{
-                },
+        memberListTable.setModel(new MapTableModel(
                 new String[]{
-                        "\uD0C0\uC785", "\uD559\uBC88/\uC0AC\uBC88", "\uC774\uB984", "\uC804\uD654\uBC88\uD638"
+                        "타입", "학번/사번", "이름", "전화번호"
                 }
         ) {
             Class[] columnTypes = new Class[]{
@@ -215,14 +236,76 @@ public class MainUI extends JFrame {
 
         JButton modifyPublisherButton = new JButton("수정");
         modifyPublisherButton.setBounds(328, 6, 85, 23);
+        modifyPublisherButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+
+                int row = publisherListTable.getSelectedRow();
+                if(row < 0)
+                    return;
+
+                int publisherId = publisherListModel.getKeyAtRow(row);
+
+                Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+                Publisher publisher = session.get(Publisher.class, publisherId);
+
+                childDialog = new PublisherModifyDialog(publisher);
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshPublisherTab();
+                    }
+                });
+                childDialog.setVisible(true);
+            }
+        });
         publisherPanel.add(modifyPublisherButton);
 
         JButton addPublisherButton = new JButton("추가");
         addPublisherButton.setBounds(425, 6, 85, 23);
+        addPublisherButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+                childDialog = new PublisherAddDialog();
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshPublisherTab();
+                    }
+                });
+                childDialog.setVisible(true);
+            }
+        });
         publisherPanel.add(addPublisherButton);
 
         JButton removePublisherButton = new JButton("제거");
         removePublisherButton.setBounds(522, 6, 85, 23);
+        removePublisherButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int row = publisherListTable.getSelectedRow();
+                if (row < 0) {
+                    return;
+                }
+
+                int id = publisherListModel.getKeyAtRow(row);
+                SQLTask deleteTask = new SQLTask(TaskType.UPDATE, "DELETE FROM Publisher WHERE publisherId = ?", id);
+                try {
+                    boolean deleteResult = (Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(deleteTask).get();
+                    if (deleteResult) {
+                        refreshPublisherTab();
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
         publisherPanel.add(removePublisherButton);
 
         JScrollPane publisherListScrollPane = new JScrollPane();
@@ -230,11 +313,9 @@ public class MainUI extends JFrame {
         publisherPanel.add(publisherListScrollPane);
 
         publisherListTable = new JTable();
-        publisherListTable.setModel(new DefaultTableModel(
-                new Object[][]{
-                },
+        publisherListModel = new MapTableModel<>(
                 new String[]{
-                        "\uCD9C\uD310\uC0AC \uBC88\uD638", "\uC774\uB984", "\uC8FC\uC18C", "\uB3C4\uC11C \uC218"
+                        "출판사 번호", "이름", "주소", "도서 수"
                 }
         ) {
             Class[] columnTypes = new Class[]{
@@ -252,18 +333,19 @@ public class MainUI extends JFrame {
             public boolean isCellEditable(int row, int column) {
                 return columnEditables[column];
             }
-        });
-        publisherListTable.getColumnModel().getColumn(0).setResizable(false);
+        };
+        publisherListTable.setModel(publisherListModel);
+        for (int i = 0; i < publisherListTable.getColumnCount(); i++) {
+            publisherListTable.getColumnModel().getColumn(i).setResizable(false);
+            publisherListTable.getColumnModel().getColumn(i).setCellRenderer(leftRenderer);
+        }
         publisherListTable.getColumnModel().getColumn(0).setPreferredWidth(50);
-        publisherListTable.getColumnModel().getColumn(1).setResizable(false);
         publisherListTable.getColumnModel().getColumn(1).setPreferredWidth(50);
-        publisherListTable.getColumnModel().getColumn(2).setResizable(false);
         publisherListTable.getColumnModel().getColumn(2).setPreferredWidth(250);
-        publisherListTable.getColumnModel().getColumn(3).setResizable(false);
         publisherListTable.getColumnModel().getColumn(3).setPreferredWidth(50);
         publisherListScrollPane.setViewportView(publisherListTable);
 
-        JComboBox publisherSearchOptionComboBox = new JComboBox();
+        publisherSearchOptionComboBox = new JComboBox<>(PublisherSearchOption.values());
         publisherSearchOptionComboBox.setBounds(12, 289, 100, 23);
         publisherPanel.add(publisherSearchOptionComboBox);
 
@@ -274,6 +356,12 @@ public class MainUI extends JFrame {
 
         JButton publisherSearchButton = new JButton("검색");
         publisherSearchButton.setBounds(507, 289, 100, 23);
+        publisherSearchButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                searchPublisher();
+            }
+        });
         publisherPanel.add(publisherSearchButton);
 
         JPanel categoryPanel = new JPanel();
@@ -286,26 +374,88 @@ public class MainUI extends JFrame {
 
         JButton modifyCategoryButton = new JButton("수정");
         modifyCategoryButton.setBounds(328, 6, 85, 23);
+        modifyCategoryButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+
+                int row = categoryListTable.getSelectedRow();
+                if(row < 0)
+                    return;
+
+                int categoryId = categoryListModel.getKeyAtRow(row);
+
+                Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+                Category category = session.get(Category.class, categoryId);
+
+                childDialog = new CategoryModifyDialog(category);
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshCategoryTab();
+                    }
+                });
+
+                session.close();
+                childDialog.setVisible(true);
+            }
+        });
         categoryPanel.add(modifyCategoryButton);
 
         JButton addCategoryButton = new JButton("추가");
         addCategoryButton.setBounds(425, 6, 85, 23);
+        addCategoryButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+                childDialog = new CategoryAddDialog();
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshCategoryTab();
+                    }
+                });
+                childDialog.setVisible(true);
+            }
+        });
         categoryPanel.add(addCategoryButton);
 
         JButton removeCategoryButton = new JButton("제거");
         removeCategoryButton.setBounds(522, 6, 85, 23);
+        removeCategoryButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int row = categoryListTable.getSelectedRow();
+                if (row < 0) {
+                    return;
+                }
+
+                int id = categoryListModel.getKeyAtRow(row);
+                SQLTask deleteTask = new SQLTask(TaskType.UPDATE, "DELETE FROM Category WHERE categoryId = ?", id);
+                try {
+                    boolean deleteResult = (Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(deleteTask).get();
+                    if (deleteResult) {
+                        refreshCategoryTab();
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
         categoryPanel.add(removeCategoryButton);
 
         JScrollPane categoryListScrollPane = new JScrollPane();
-        categoryListScrollPane.setBounds(12, 35, 595, 244);
+        categoryListScrollPane.setBounds(12, 35, 595, 277);
         categoryPanel.add(categoryListScrollPane);
 
         categoryListTable = new JTable();
-        categoryListTable.setModel(new DefaultTableModel(
-                new Object[][]{
-                },
+        categoryListModel = new MapTableModel<>(
                 new String[]{
-                        "\uCE74\uD14C\uACE0\uB9AC \uBC88\uD638", "\uC774\uB984", "\uB3C4\uC11C \uC218"
+                        "카테고리 번호", "이름", "도서 수"
                 }
         ) {
             Class[] columnTypes = new Class[]{
@@ -323,23 +473,182 @@ public class MainUI extends JFrame {
             public boolean isCellEditable(int row, int column) {
                 return columnEditables[column];
             }
-        });
-        categoryListTable.getColumnModel().getColumn(0).setResizable(false);
-        categoryListTable.getColumnModel().getColumn(1).setResizable(false);
-        categoryListTable.getColumnModel().getColumn(2).setResizable(false);
+        };
+        categoryListTable.setModel(categoryListModel);
+        for (int i = 0; i < categoryListTable.getColumnCount(); i++) {
+            categoryListTable.getColumnModel().getColumn(i).setResizable(false);
+            categoryListTable.getColumnModel().getColumn(i).setCellRenderer(leftRenderer);
+        }
+        categoryListTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         categoryListScrollPane.setViewportView(categoryListTable);
 
-        JComboBox categorySearchOptionComboBox = new JComboBox();
-        categorySearchOptionComboBox.setBounds(12, 289, 100, 23);
-        categoryPanel.add(categorySearchOptionComboBox);
+        refreshPublisherTab();
+        refreshCategoryTab();
 
-        categorySearchTextField = new JTextField();
-        categorySearchTextField.setColumns(10);
-        categorySearchTextField.setBounds(124, 290, 371, 21);
-        categoryPanel.add(categorySearchTextField);
+        setLocationRelativeTo(null);
+    }
 
-        JButton categorySearchButton = new JButton("검색");
-        categorySearchButton.setBounds(507, 289, 100, 23);
-        categoryPanel.add(categorySearchButton);
+    private void refreshBookTab() {
+
+    }
+
+    private void refreshPublisherTab() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        Map<Integer, Publisher> publishers = new TreeMap<>();
+        for (Publisher publisher : session.createQuery("FROM Publisher ORDER BY name", Publisher.class).list()) {
+            publishers.put(publisher.getPublisherId(), publisher);
+        }
+
+        List<Integer> keysToRemove = new ArrayList<>();
+        Iterator<Integer> keyIterator = publisherListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            if (!publishers.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (int key : keysToRemove) {
+            publisherListModel.removeRow(key);
+        }
+
+        for (Entry<Integer, Publisher> entry : publishers.entrySet()) {
+            publisherListModel.setRow(entry.getKey(), new Object[]{entry.getKey(), entry.getValue().getName(), entry.getValue().getAddress(), entry.getValue().getBookCount()});
+        }
+
+        publisherListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    private void searchPublisher() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        String searchKeyword = publisherSearchTextField.getText();
+        if (searchKeyword == null || searchKeyword.isEmpty()) {
+            refreshPublisherTab();
+            return;
+        }
+
+        Map<Integer, Publisher> publishers = new TreeMap<>();
+        String searchAttribute = "";
+        String query = "";
+        boolean isInteger;
+        switch ((PublisherSearchOption) publisherSearchOptionComboBox.getSelectedItem()) {
+            case ID:
+                searchAttribute = "publisherId";
+                isInteger = true;
+                break;
+            case NAME:
+                searchAttribute = "name";
+                isInteger = false;
+                break;
+            case ADDRESS:
+                searchAttribute = "address";
+                isInteger = false;
+                break;
+            default:
+                isInteger = false;
+                break;
+        }
+        int parsedKeyword = 0;
+        if(isInteger) {
+            try {
+                parsedKeyword = Integer.parseInt(searchKeyword);
+            } catch (NumberFormatException e) {
+                return;
+            }
+            query = "FROM Publisher WHERE " + searchAttribute + " = :searchKeyword ORDER BY name";
+        } else {
+            query = "FROM Publisher WHERE " + searchAttribute + " LIKE :searchKeyword ORDER BY name";
+        }
+
+        for (Publisher publisher : session.createQuery(query, Publisher.class).setParameter("searchKeyword", isInteger ? parsedKeyword : "%" + searchKeyword + "%").list()) {
+            publishers.put(publisher.getPublisherId(), publisher);
+        }
+
+        List<Integer> keysToRemove = new ArrayList<>();
+        Iterator<Integer> keyIterator = publisherListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            if (!publishers.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (int key : keysToRemove) {
+            publisherListModel.removeRow(key);
+        }
+
+        for (Entry<Integer, Publisher> entry : publishers.entrySet()) {
+            publisherListModel.setRow(entry.getKey(), new Object[]{entry.getKey(), entry.getValue().getName(), entry.getValue().getAddress(), entry.getValue().getBookCount()});
+        }
+
+        publisherListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    private void refreshCategoryTab() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        Map<Integer, Category> categories = new TreeMap<>();
+        for (Category category : session.createQuery("FROM Category ORDER BY categoryId", Category.class).list()) {
+            categories.put(category.getCategoryId(), category);
+        }
+
+        List<Integer> keysToRemove = new ArrayList<>();
+        Iterator<Integer> keyIterator = categoryListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            if (!categories.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (int key : keysToRemove) {
+            categoryListModel.removeRow(key);
+        }
+
+        for (Entry<Integer, Category> entry : categories.entrySet()) {
+            categoryListModel.setRow(entry.getKey(), new Object[]{entry.getKey(), entry.getValue().getName(), entry.getValue().getBookCount()});
+        }
+
+        categoryListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    enum BookSearchOption {
+        TITLE("제목"),
+        ID("도서번호"),
+        AUTHOR("저자"),
+        PUBLISHER("출판사");
+
+        private String displayName;
+
+        BookSearchOption(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    enum PublisherSearchOption {
+        NAME("이름"),
+        ID("번호"),
+        ADDRESS("주소");
+
+        private String displayName;
+
+        PublisherSearchOption(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
     }
 }

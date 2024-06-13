@@ -13,8 +13,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class SQLTaskProcessor {
 
     private DataSource dataSource;
-
-    private BlockingQueue<SQLTask> queue = new LinkedBlockingQueue<>();
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public SQLTaskProcessor(DataSource dataSource) {

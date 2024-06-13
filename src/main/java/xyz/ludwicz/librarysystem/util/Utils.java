@@ -1,4 +1,4 @@
-package xyz.ludwicz.librarysystem;
+package xyz.ludwicz.librarysystem.util;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

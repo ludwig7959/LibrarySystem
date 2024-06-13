@@ -48,6 +48,28 @@
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.13</version>
         </dependency>
+        <dependency>
+            <groupId>com.glazedlists</groupId>
+            <artifactId>glazedlists</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.5.2.Final</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-entitymanager</artifactId>
+            <version>5.6.15.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-hikaricp</artifactId>
+            <version>6.5.2.Final</version>
+            <type>pom</type>
+        </dependency>
     </dependencies>
 
     <build>
@@ -75,7 +97,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>xyz.ludwicz.librarysystem.Main</mainClass>
+                                    <mainClass>xyz.ludwicz.librarysystem.LibrarySystem</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
