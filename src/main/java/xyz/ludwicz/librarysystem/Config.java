@@ -3,7 +3,9 @@ package xyz.ludwicz.librarysystem;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import xyz.ludwicz.librarysystem.gui.BookAddDialog;
 
+import javax.swing.*;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -54,7 +56,7 @@ public class Config {
             DB_POOLING_MAX_LIFETIME = Integer.parseInt(poolingSection.get("maxLifetime").toString());
             DB_POOLING_CONNECTION_TIMEOUT = Integer.parseInt(poolingSection.get("connectionTimeout").toString());
         } catch (Exception e) {
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "설정을 읽어오는데 문제가 발생했습니다.\nconfig.json을 삭제하고 다시 실행시켜 주세요.", "경고", JOptionPane.WARNING_MESSAGE);
             System.exit(1);
         }
     }
