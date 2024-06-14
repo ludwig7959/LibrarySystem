@@ -45,4 +45,9 @@ public class Publisher {
     public long getBookCount() {
         return bookCount;
     }
+
+    @Override
+    public String toString() {
+        return name;
+    }
 }

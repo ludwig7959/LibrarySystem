@@ -17,7 +17,7 @@
     <repositories>
         <repository>
             <id>maven-central</id>
-            <url>	https://repo1.maven.org/maven2/</url>
+            <url>https://repo1.maven.org/maven2/</url>
         </repository>
     </repositories>
 
@@ -49,9 +49,9 @@
             <version>2.0.13</version>
         </dependency>
         <dependency>
-            <groupId>com.glazedlists</groupId>
-            <artifactId>glazedlists</artifactId>
-            <version>1.11.0</version>
+            <groupId>org.swinglabs</groupId>
+            <artifactId>swingx</artifactId>
+            <version>1.6.1</version>
         </dependency>
         <dependency>
             <groupId>org.hibernate</groupId>

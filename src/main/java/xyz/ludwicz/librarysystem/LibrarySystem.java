@@ -5,6 +5,7 @@ import xyz.ludwicz.librarysystem.gui.LoginUI;
 import xyz.ludwicz.librarysystem.gui.MainUI;
 
 import javax.swing.*;
+import java.util.Locale;
 
 public class LibrarySystem {
 

@@ -8,6 +8,10 @@ import javax.persistence.*;
 @Table(name = "Category")
 public class Category {
 
+    public static Category ALL = new Category(0, "전체");
+    public static Category ETC = new Category(-1, "기타");
+
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "categoryId")
@@ -33,5 +37,19 @@ public class Category {
 
     public long getBookCount() {
         return bookCount;
+    }
+
+    private Category(int categoryId, String name) {
+        this.categoryId = categoryId;
+        this.name = name;
+    }
+
+    public Category() {
+
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }

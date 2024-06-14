@@ -30,7 +30,7 @@ public class PublisherModifyDialog extends JDialog {
         getContentPane().add(contentPanel, BorderLayout.CENTER);
         contentPanel.setLayout(null);
 
-        JLabel publisherAddLabel = new JLabel("출판사 추가");
+        JLabel publisherAddLabel = new JLabel("출판사 수정");
         publisherAddLabel.setFont(new Font("맑은 고딕", Font.BOLD, 12));
         publisherAddLabel.setBounds(12, 10, 103, 15);
         contentPanel.add(publisherAddLabel);
@@ -56,9 +56,9 @@ public class PublisherModifyDialog extends JDialog {
         addressTextArea.setText(publisher.getAddress());
         contentPanel.add(addressTextArea);
 
-        JButton addButton = new JButton("추가");
-        addButton.setBounds(42, 191, 97, 23);
-        addButton.addActionListener(new ActionListener() {
+        JButton modifyButton = new JButton("수정");
+        modifyButton.setBounds(42, 191, 97, 23);
+        modifyButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String publisherName = nameTextField.getText();
@@ -82,7 +82,7 @@ public class PublisherModifyDialog extends JDialog {
                         return;
                     }
 
-                    SQLTask addTask = new SQLTask(TaskType.UPDATE, "UPDATE Publisher SET name, address VALUES ?, ?", publisherName, address);
+                    SQLTask addTask = new SQLTask(TaskType.UPDATE, "UPDATE Publisher SET name = ?, address = ? WHERE publisherId", publisherName, address, publisher.getPublisherId());
                     boolean addResult = (Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(addTask).get();
                     if (addResult) {
                         JOptionPane.showMessageDialog(PublisherModifyDialog.this, "출판사 수정이 완료되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
@@ -97,7 +97,7 @@ public class PublisherModifyDialog extends JDialog {
                 }
             }
         });
-        contentPanel.add(addButton);
+        contentPanel.add(modifyButton);
 
         setLocationRelativeTo(null);
     }

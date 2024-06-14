@@ -2,7 +2,10 @@ package xyz.ludwicz.librarysystem.gui;
 
 import org.hibernate.Session;
 import xyz.ludwicz.librarysystem.LibrarySystem;
+import xyz.ludwicz.librarysystem.data.Book;
+import xyz.ludwicz.librarysystem.data.BookInfo;
 import xyz.ludwicz.librarysystem.data.Category;
+import xyz.ludwicz.librarysystem.data.Member;
 import xyz.ludwicz.librarysystem.data.Publisher;
 import xyz.ludwicz.librarysystem.database.SQLTask;
 import xyz.ludwicz.librarysystem.database.SQLTask.TaskType;
@@ -11,9 +14,10 @@ import xyz.ludwicz.librarysystem.gui.models.MapTableModel;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -26,9 +30,14 @@ import java.util.TreeMap;
 public class MainUI extends JFrame {
 
     private JPanel contentPane;
+    private JComboBox<BookSearchOption> bookSearchOptionComboBox;
     private JTextField bookSearchTextField;
     private JTable bookListTable;
+    private MapTableModel<Integer> bookListModel;
+    private JComboBox<Category> categoryPickComboBox;
     private JTable memberListTable;
+    private MapTableModel<String> memberListModel;
+    private JComboBox<MemberSearchOption> memberSearchOptionComboBox;
     private JTextField memberSearchTextField;
     private JComboBox<PublisherSearchOption> publisherSearchOptionComboBox;
     private JTextField publisherSearchTextField;
@@ -49,6 +58,16 @@ public class MainUI extends JFrame {
         contentPane = new JPanel();
         contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                if (childDialog == null || !childDialog.isDisplayable())
+                    return;
+
+                childDialog.requestFocus();
+            }
+        });
+
         setContentPane(contentPane);
         contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.X_AXIS));
 
@@ -65,6 +84,7 @@ public class MainUI extends JFrame {
         JButton bookSearchButton = new JButton("검색");
         bookSearchButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                searchBook();
             }
         });
 
@@ -72,6 +92,29 @@ public class MainUI extends JFrame {
         modifyBookButton.setActionCommand("수정");
         modifyBookButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+
+                int row = bookListTable.getSelectedRow();
+                if (row < 0)
+                    return;
+
+                Integer bookId = bookListModel.getKeyAtRow(row);
+
+                Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+                Book book = session.get(Book.class, bookId);
+                session.close();
+
+                childDialog = new BookModifyDialog(book);
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshBookTab();
+                    }
+                });
+
+                childDialog.setVisible(true);
             }
         });
 
@@ -90,18 +133,43 @@ public class MainUI extends JFrame {
         addBookButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if (bookAddDialog != null && bookAddDialog.isDisplayable()) {
+                if (childDialog != null && childDialog.isDisplayable()) {
                     return;
                 }
-                bookAddDialog = new BookAddDialog();
-                bookAddDialog.setVisible(true);
+                childDialog = new BookAddDialog();
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshBookTab();
+                    }
+                });
+                childDialog.setVisible(true);
             }
         });
         bookPanel.add(addBookButton);
 
         JButton removeBookButton = new JButton("제거");
-        removeBookButton.setActionCommand("수정");
         removeBookButton.setBounds(522, 6, 85, 23);
+        removeBookButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int row = bookListTable.getSelectedRow();
+                if (row < 0) {
+                    return;
+                }
+
+                int id = bookListModel.getKeyAtRow(row);
+                SQLTask deleteTask = new SQLTask(TaskType.UPDATE, "DELETE FROM Book WHERE bookId = ?", id);
+                try {
+                    boolean deleteResult = (Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(deleteTask).get();
+                    if (deleteResult) {
+                        refreshBookTab();
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
         bookPanel.add(removeBookButton);
 
         JScrollPane bookListScrollPane = new JScrollPane();
@@ -109,9 +177,7 @@ public class MainUI extends JFrame {
         bookPanel.add(bookListScrollPane);
 
         bookListTable = new JTable();
-        bookListTable.setModel(new DefaultTableModel(
-                new Object[][]{
-                },
+        bookListModel = new MapTableModel<>(
                 new String[]{
                         "도서 번호", "제목", "저자", "출판사", "상태"
                 }
@@ -123,18 +189,26 @@ public class MainUI extends JFrame {
             public Class getColumnClass(int columnIndex) {
                 return columnTypes[columnIndex];
             }
-        });
-        bookListTable.getColumnModel().getColumn(0).setResizable(false);
+
+            boolean[] columnEditables = new boolean[]{
+                    false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int row, int column) {
+                return columnEditables[column];
+            }
+        };
+        bookListTable.setModel(bookListModel);
+        for (int i = 0; i < bookListTable.getColumnCount(); i++) {
+            bookListTable.getColumnModel().getColumn(i).setResizable(false);
+            bookListTable.getColumnModel().getColumn(i).setCellRenderer(leftRenderer);
+        }
         bookListTable.getColumnModel().getColumn(0).setPreferredWidth(50);
-        bookListTable.getColumnModel().getColumn(1).setResizable(false);
         bookListTable.getColumnModel().getColumn(1).setPreferredWidth(250);
-        bookListTable.getColumnModel().getColumn(2).setResizable(false);
-        bookListTable.getColumnModel().getColumn(3).setResizable(false);
-        bookListTable.getColumnModel().getColumn(4).setResizable(false);
         bookListTable.getColumnModel().getColumn(4).setPreferredWidth(50);
         bookListScrollPane.setViewportView(bookListTable);
 
-        JComboBox<BookSearchOption> bookSearchOptionComboBox = new JComboBox<>(BookSearchOption.values());
+        bookSearchOptionComboBox = new JComboBox<>(BookSearchOption.values());
         bookSearchOptionComboBox.setBounds(12, 289, 80, 23);
         bookPanel.add(bookSearchOptionComboBox);
 
@@ -149,8 +223,22 @@ public class MainUI extends JFrame {
         bookCategoryPickLabel.setBounds(438, 293, 57, 15);
         bookPanel.add(bookCategoryPickLabel);
 
-        JComboBox categoryPickComboBox = new JComboBox();
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+        List<Category> categories = session.createQuery("FROM Category", Category.class).list();
+        session.close();
+        categories.add(0, Category.ALL);
+        categories.add(Category.ETC);
+
+        categoryPickComboBox = new JComboBox<>(categories.toArray(new Category[0]));
         categoryPickComboBox.setBounds(507, 289, 100, 23);
+        categoryPickComboBox.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    refreshBookTab();
+                }
+            }
+        });
         bookPanel.add(categoryPickComboBox);
 
         JPanel memberPanel = new JPanel();
@@ -160,12 +248,49 @@ public class MainUI extends JFrame {
         JButton removeMemberButton = new JButton("제거");
         removeMemberButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                int row = memberListTable.getSelectedRow();
+                if (row < 0) {
+                    return;
+                }
+
+                String id = memberListModel.getKeyAtRow(row);
+                SQLTask deleteTask = new SQLTask(TaskType.UPDATE, "DELETE FROM Member WHERE memberId = ?", id);
+                try {
+                    boolean deleteResult = (Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(deleteTask).get();
+                    if (deleteResult) {
+                        refreshMemberTab();
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         });
 
         JButton modifyMemberButton = new JButton("수정");
         modifyMemberButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+
+                int row = memberListTable.getSelectedRow();
+                if (row < 0)
+                    return;
+
+                String memberId = memberListModel.getKeyAtRow(row);
+
+                Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+                Member member = session.get(Member.class, memberId);
+                session.close();
+
+                childDialog = new MemberModifyDialog(member);
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshMemberTab();
+                    }
+                });
+                childDialog.setVisible(true);
             }
         });
 
@@ -181,7 +306,24 @@ public class MainUI extends JFrame {
 
         JButton addMemberButton = new JButton("추가");
         addMemberButton.setBounds(425, 6, 85, 23);
+        addMemberButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (childDialog != null && childDialog.isDisplayable()) {
+                    return;
+                }
+                childDialog = new MemberAddDialog();
+                childDialog.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosed(WindowEvent e) {
+                        refreshMemberTab();
+                    }
+                });
+                childDialog.setVisible(true);
+            }
+        });
         memberPanel.add(addMemberButton);
+
         removeMemberButton.setBounds(522, 6, 85, 23);
         memberPanel.add(removeMemberButton);
 
@@ -190,7 +332,7 @@ public class MainUI extends JFrame {
         memberPanel.add(memberListScrollPane);
 
         memberListTable = new JTable();
-        memberListTable.setModel(new MapTableModel(
+        memberListModel = new MapTableModel<>(
                 new String[]{
                         "타입", "학번/사번", "이름", "전화번호"
                 }
@@ -202,18 +344,28 @@ public class MainUI extends JFrame {
             public Class getColumnClass(int columnIndex) {
                 return columnTypes[columnIndex];
             }
-        });
-        memberListTable.getColumnModel().getColumn(0).setResizable(false);
+
+            boolean[] columnEditables = new boolean[]{
+                    false, false, false, false
+            };
+
+            public boolean isCellEditable(int row, int column) {
+                return columnEditables[column];
+            }
+        };
+        for (int i = 0; i < memberListTable.getColumnCount(); i++) {
+            memberListTable.getColumnModel().getColumn(i).setResizable(false);
+            memberListTable.getColumnModel().getColumn(i).setCellRenderer(leftRenderer);
+        }
+        memberListTable.setModel(memberListModel);
         memberListTable.getColumnModel().getColumn(0).setPreferredWidth(25);
-        memberListTable.getColumnModel().getColumn(1).setResizable(false);
         memberListTable.getColumnModel().getColumn(1).setPreferredWidth(120);
-        memberListTable.getColumnModel().getColumn(2).setResizable(false);
         memberListTable.getColumnModel().getColumn(2).setPreferredWidth(120);
-        memberListTable.getColumnModel().getColumn(3).setResizable(false);
         memberListTable.getColumnModel().getColumn(3).setPreferredWidth(120);
+        memberListTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         memberListScrollPane.setViewportView(memberListTable);
 
-        JComboBox memberSearchOptionComboBox = new JComboBox();
+        memberSearchOptionComboBox = new JComboBox<>(MemberSearchOption.values());
         memberSearchOptionComboBox.setBounds(12, 289, 100, 23);
         memberPanel.add(memberSearchOptionComboBox);
 
@@ -224,6 +376,12 @@ public class MainUI extends JFrame {
 
         JButton memberSearchButton = new JButton("검색");
         memberSearchButton.setBounds(507, 289, 100, 23);
+        memberSearchButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                searchMember();
+            }
+        });
         memberPanel.add(memberSearchButton);
 
         JPanel publisherPanel = new JPanel();
@@ -244,13 +402,14 @@ public class MainUI extends JFrame {
                 }
 
                 int row = publisherListTable.getSelectedRow();
-                if(row < 0)
+                if (row < 0)
                     return;
 
                 int publisherId = publisherListModel.getKeyAtRow(row);
 
                 Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
                 Publisher publisher = session.get(Publisher.class, publisherId);
+                session.close();
 
                 childDialog = new PublisherModifyDialog(publisher);
                 childDialog.addWindowListener(new WindowAdapter() {
@@ -343,6 +502,7 @@ public class MainUI extends JFrame {
         publisherListTable.getColumnModel().getColumn(1).setPreferredWidth(50);
         publisherListTable.getColumnModel().getColumn(2).setPreferredWidth(250);
         publisherListTable.getColumnModel().getColumn(3).setPreferredWidth(50);
+        publisherListTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         publisherListScrollPane.setViewportView(publisherListTable);
 
         publisherSearchOptionComboBox = new JComboBox<>(PublisherSearchOption.values());
@@ -382,13 +542,14 @@ public class MainUI extends JFrame {
                 }
 
                 int row = categoryListTable.getSelectedRow();
-                if(row < 0)
+                if (row < 0)
                     return;
 
                 int categoryId = categoryListModel.getKeyAtRow(row);
 
                 Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
                 Category category = session.get(Category.class, categoryId);
+                session.close();
 
                 childDialog = new CategoryModifyDialog(category);
                 childDialog.addWindowListener(new WindowAdapter() {
@@ -398,7 +559,6 @@ public class MainUI extends JFrame {
                     }
                 });
 
-                session.close();
                 childDialog.setVisible(true);
             }
         });
@@ -482,6 +642,8 @@ public class MainUI extends JFrame {
         categoryListTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         categoryListScrollPane.setViewportView(categoryListTable);
 
+        refreshBookTab();
+        refreshMemberTab();
         refreshPublisherTab();
         refreshCategoryTab();
 
@@ -489,7 +651,209 @@ public class MainUI extends JFrame {
     }
 
     private void refreshBookTab() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+        Category category = (Category) categoryPickComboBox.getSelectedItem();
+        String query = "FROM Book ORDER BY bookId";
+        // "(SELECT COUNT(*) FROM Book b JOIN BookInfo bi ON b.bookInfoId = bi.bookInfoId WHERE bi.categoryId = categoryId)"
+        if (category.getCategoryId() != 0) {
+            if (category.getCategoryId() < 0) {
+                query = "SELECT b FROM Book b JOIN b.bookInfo bi ON b.bookInfoId = bi.bookInfoId WHERE bi.category IS NULL";
+            } else {
+                query = "SELECT b FROM Book b JOIN b.bookInfo bi WHERE bi.category = " + category.getCategoryId();
+            }
+        }
 
+        Map<Integer, Book> books = new TreeMap<>();
+        for (Book book : session.createQuery(query, Book.class).list()) {
+            books.put(book.getBookId(), book);
+        }
+
+        List<Integer> keysToRemove = new ArrayList<>();
+        Iterator<Integer> keyIterator = bookListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            if (!books.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (Integer key : keysToRemove) {
+            bookListModel.removeRow(key);
+        }
+
+        for (Entry<Integer, Book> entry : books.entrySet()) {
+            BookInfo bookInfo = entry.getValue().getBookInfo();
+            String status = "보관 중";
+            if (entry.getValue().isCheckedOut()) {
+                if (entry.getValue().isOverdue()) {
+                    status = "연체";
+                } else {
+                    status = "대출 중";
+                }
+            }
+            bookListModel.setRow(entry.getKey(), new Object[]{entry.getKey(), bookInfo.getTitle(), bookInfo.getAuthor(), bookInfo.getPublisher().getName(), status});
+        }
+
+        bookListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    private void searchBook() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        String searchKeyword = bookSearchTextField.getText();
+        if (searchKeyword == null || searchKeyword.isEmpty()) {
+            refreshBookTab();
+            return;
+        }
+
+        Map<Integer, Book> books = new TreeMap<>();
+        boolean isInteger = false;
+        int intSearchKeyword = 0;
+        String query = "";
+        switch ((BookSearchOption) bookSearchOptionComboBox.getSelectedItem()) {
+            case ID:
+                try {
+                    intSearchKeyword = Integer.parseInt(searchKeyword);
+                } catch (NumberFormatException e) {
+                    return;
+                }
+                query = "SELECT b FROM Book b WHERE b.bookId = :searchKeyword";
+                isInteger = true;
+                break;
+            case TITLE:
+                query = "SELECT b FROM Book b JOIN b.bookInfo bi WHERE bi.title LIKE :searchKeyword";
+                break;
+            case AUTHOR:
+                query = "SELECT b FROM Book b JOIN b.bookInfo bi WHERE bi.author LIKE :searchKeyword";
+                break;
+            case PUBLISHER:
+                query = "SELECT b FROM Book b JOIN b.bookInfo bi WHERE bi.publisher.name LIKE :searchKeyword";
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid search option");
+        }
+
+        Category category = (Category) categoryPickComboBox.getSelectedItem();
+        if (category.getCategoryId() != 0) {
+            if (category.getCategoryId() < 0) {
+                query += " AND bi.category IS NULL";
+            } else {
+                query += " AND bi.category.categoryId = :categoryId";
+            }
+        }
+
+        for (Book book : session.createQuery(query, Book.class).setParameter("searchKeyword", isInteger ? intSearchKeyword : "%" + searchKeyword + "%").list()) {
+            books.put(book.getBookId(), book);
+        }
+
+        List<Integer> keysToRemove = new ArrayList<>();
+        Iterator<Integer> keyIterator = bookListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            Integer key = keyIterator.next();
+            if (!books.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (int key : keysToRemove) {
+            bookListModel.removeRow(key);
+        }
+
+        for (Entry<Integer, Book> entry : books.entrySet()) {
+            BookInfo bookInfo = entry.getValue().getBookInfo();
+            String status = "보관 중";
+            if (entry.getValue().isCheckedOut()) {
+                if (entry.getValue().isOverdue()) {
+                    status = "연체";
+                } else {
+                    status = "대출 중";
+                }
+            }
+            bookListModel.setRow(entry.getKey(), new Object[]{entry.getKey(), bookInfo.getTitle(), bookInfo.getAuthor(), bookInfo.getPublisher().getName(), status});
+        }
+
+        bookListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    private void refreshMemberTab() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        Map<String, Member> members = new TreeMap<>();
+        for (Member member : session.createQuery("FROM Member ORDER BY name", Member.class).list()) {
+            members.put(member.getMemberId(), member);
+        }
+
+        List<String> keysToRemove = new ArrayList<>();
+        Iterator<String> keyIterator = memberListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            String key = keyIterator.next();
+            if (!members.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (String key : keysToRemove) {
+            memberListModel.removeRow(key);
+        }
+
+        for (Entry<String, Member> entry : members.entrySet()) {
+            memberListModel.setRow(entry.getKey(), new Object[]{entry.getValue().getType().equals("STUDENT") ? "학생" : "교수", entry.getKey(), entry.getValue().getName(), entry.getValue().getPhone()});
+        }
+
+        memberListModel.fireTableDataChanged();
+        session.close();
+    }
+
+    private void searchMember() {
+        Session session = LibrarySystem.getInstance().getDatabaseManager().getSessionFactory().openSession();
+
+        String searchKeyword = memberSearchTextField.getText();
+        if (searchKeyword == null || searchKeyword.isEmpty()) {
+            refreshMemberTab();
+            return;
+        }
+
+        Map<String, Member> members = new TreeMap<>();
+        String searchAttribute = "";
+        switch ((MemberSearchOption) memberSearchOptionComboBox.getSelectedItem()) {
+            case ID:
+                searchAttribute = "memberId";
+                break;
+            case NAME:
+                searchAttribute = "name";
+                break;
+            case PHONE:
+                searchAttribute = "phone";
+                break;
+            default:
+                break;
+        }
+
+        for (Member member : session.createQuery("FROM Member WHERE " + searchAttribute + " LIKE :searchKeyword ORDER BY name", Member.class).setParameter("searchKeyword", "%" + searchKeyword + "%").list()) {
+            members.put(member.getMemberId(), member);
+        }
+
+        List<String> keysToRemove = new ArrayList<>();
+        Iterator<String> keyIterator = memberListModel.keySet().iterator();
+        while (keyIterator.hasNext()) {
+            String key = keyIterator.next();
+            if (!members.containsKey(key)) {
+                keysToRemove.add(key);
+            }
+        }
+
+        for (String key : keysToRemove) {
+            memberListModel.removeRow(key);
+        }
+
+        for (Entry<String, Member> entry : members.entrySet()) {
+            memberListModel.setRow(entry.getKey(), new Object[]{entry.getValue().getType().equals("STUDENT") ? "학생" : "교수", entry.getKey(), entry.getValue().getName(), entry.getValue().getPhone()});
+        }
+
+        memberListModel.fireTableDataChanged();
+        session.close();
     }
 
     private void refreshPublisherTab() {
@@ -552,7 +916,7 @@ public class MainUI extends JFrame {
                 break;
         }
         int parsedKeyword = 0;
-        if(isInteger) {
+        if (isInteger) {
             try {
                 parsedKeyword = Integer.parseInt(searchKeyword);
             } catch (NumberFormatException e) {
@@ -615,6 +979,23 @@ public class MainUI extends JFrame {
 
         categoryListModel.fireTableDataChanged();
         session.close();
+    }
+
+    enum MemberSearchOption {
+        ID("학번/사번"),
+        NAME("이름"),
+        PHONE("전화번호");
+
+        private String displayName;
+
+        MemberSearchOption(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
     }
 
     enum BookSearchOption {

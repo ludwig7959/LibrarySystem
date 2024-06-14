@@ -3,6 +3,8 @@ package xyz.ludwicz.librarysystem.gui;
 import org.hibernate.Session;
 import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
 import xyz.ludwicz.librarysystem.LibrarySystem;
+import xyz.ludwicz.librarysystem.data.Book;
+import xyz.ludwicz.librarysystem.data.BookInfo;
 import xyz.ludwicz.librarysystem.data.Category;
 import xyz.ludwicz.librarysystem.data.Publisher;
 import xyz.ludwicz.librarysystem.database.SQLTask;
@@ -17,7 +19,9 @@ import java.awt.event.ItemEvent;
 import java.sql.ResultSet;
 import java.util.List;
 
-public class BookAddDialog extends JDialog {
+public class BookModifyDialog extends JDialog {
+
+    private final Book book;
 
     private final JPanel contentPanel = new JPanel();
     private JComboBox<String> titleComboBox;
@@ -26,7 +30,9 @@ public class BookAddDialog extends JDialog {
     private JComboBox<Publisher> publisherComboBox;
     private JComboBox<Category> categoryComboBox;
 
-    public BookAddDialog() {
+    public BookModifyDialog(Book book) {
+        this.book = book;
+
         setBounds(100, 100, 280, 220);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         getContentPane().setLayout(new BorderLayout());
@@ -50,6 +56,7 @@ public class BookAddDialog extends JDialog {
             titleComboBox = new JComboBox<>(titles.toArray(new String[0]));
             titleComboBox.setEditable(true);
             titleComboBox.setBounds(65, 32, 185, 21);
+            titleComboBox.setSelectedItem(book.getBookInfo().getTitle());
             contentPanel.add(titleComboBox);
 
             JLabel authorLabel = new JLabel("저자");
@@ -68,6 +75,7 @@ public class BookAddDialog extends JDialog {
             publisherComboBox = new JComboBox<>(session.createQuery("FROM Publisher", Publisher.class).list().toArray(new Publisher[0]));
             publisherComboBox.setEditable(true);
             publisherComboBox.setBounds(65, 81, 185, 23);
+            publisherComboBox.setSelectedItem(book.getBookInfo().getPublisher());
             contentPanel.add(publisherComboBox);
 
             JLabel categoryLabel = new JLabel("카테고리");
@@ -78,10 +86,11 @@ public class BookAddDialog extends JDialog {
             categories.add(Category.ETC);
             categoryComboBox = new JComboBox<>(categories.toArray(new Category[0]));
             categoryComboBox.setBounds(65, 106, 185, 23);
+            categoryComboBox.setSelectedItem(book.getBookInfo().getCategory());
             contentPanel.add(categoryComboBox);
 
-            JButton addButton = new JButton("추가");
-            addButton.addActionListener(new ActionListener() {
+            JButton modifyButton = new JButton("수정");
+            modifyButton.addActionListener(new ActionListener() {
                 public void actionPerformed(ActionEvent e) {
                     String title = (String) titleComboBox.getSelectedItem();
                     String author = authorTextField.getText();
@@ -89,22 +98,22 @@ public class BookAddDialog extends JDialog {
                     Object categoryObject = categoryComboBox.getSelectedItem();
 
                     if (title == null || title.isEmpty()) {
-                        JOptionPane.showMessageDialog(BookAddDialog.this, "책 제목을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+                        JOptionPane.showMessageDialog(BookModifyDialog.this, "책 제목을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
 
                     if (author == null || author.isEmpty()) {
-                        JOptionPane.showMessageDialog(BookAddDialog.this, "저자를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+                        JOptionPane.showMessageDialog(BookModifyDialog.this, "저자를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
 
                     if (publisherObject == null || !(publisherObject instanceof Publisher)) {
-                        JOptionPane.showMessageDialog(BookAddDialog.this, "존재하는 출판사를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+                        JOptionPane.showMessageDialog(BookModifyDialog.this, "존재하는 출판사를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
 
                     if (categoryObject == null || !(categoryObject instanceof Category)) {
-                        JOptionPane.showMessageDialog(BookAddDialog.this, "존재하는 카테고리를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+                        JOptionPane.showMessageDialog(BookModifyDialog.this, "존재하는 카테고리를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
 
@@ -119,7 +128,7 @@ public class BookAddDialog extends JDialog {
                             bookInfoId = bookInfoResult.getInt("bookInfoId");
                         } else {
                             int result = JOptionPane.showConfirmDialog(
-                                    BookAddDialog.this,
+                                    BookModifyDialog.this,
                                     "새로운 도서 정보를 추가하시겠습니까?",
                                     "도서 추가",
                                     JOptionPane.YES_NO_OPTION,
@@ -140,20 +149,20 @@ public class BookAddDialog extends JDialog {
                             }
                         }
 
-                        SQLTask bookAddTask = new SQLTask(TaskType.UPDATE, "INSERT INTO Book (bookInfoId) VALUES (?)", bookInfoId);
+                        SQLTask bookAddTask = new SQLTask(TaskType.UPDATE, "UPDATE Book SET bookInfoId = ? WHERE bookId = ?", bookInfoId, book.getBookId());
                         if ((Boolean) LibrarySystem.getInstance().getDatabaseManager().getTaskProcessor().submitTask(bookAddTask).get()) {
-                            JOptionPane.showMessageDialog(BookAddDialog.this, "도서 추가가 완료되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+                            JOptionPane.showMessageDialog(BookModifyDialog.this, "도서 수정이 완료되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
                             dispose();
                         } else {
-                            JOptionPane.showMessageDialog(BookAddDialog.this, "도서 추가에 실패하였습니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                            JOptionPane.showMessageDialog(BookModifyDialog.this, "도서 수정에 실패하였습니다.", "경고", JOptionPane.WARNING_MESSAGE);
                         }
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
                 }
             });
-            addButton.setBounds(85, 148, 97, 23);
-            contentPanel.add(addButton);
+            modifyButton.setBounds(85, 148, 97, 23);
+            contentPanel.add(modifyButton);
 
             setupAutoComplete();
 

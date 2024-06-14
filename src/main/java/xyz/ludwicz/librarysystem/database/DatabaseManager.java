@@ -9,7 +9,11 @@ import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.service.ServiceRegistry;
 import xyz.ludwicz.librarysystem.Config;
+import xyz.ludwicz.librarysystem.data.Book;
+import xyz.ludwicz.librarysystem.data.BookInfo;
 import xyz.ludwicz.librarysystem.data.Category;
+import xyz.ludwicz.librarysystem.data.Checkout;
+import xyz.ludwicz.librarysystem.data.Member;
 import xyz.ludwicz.librarysystem.data.Publisher;
 
 import java.sql.Connection;
@@ -96,6 +100,10 @@ public class DatabaseManager {
 
         configuration.addAnnotatedClass(Category.class);
         configuration.addAnnotatedClass(Publisher.class);
+        configuration.addAnnotatedClass(Member.class);
+        configuration.addAnnotatedClass(BookInfo.class);
+        configuration.addAnnotatedClass(Book.class);
+        configuration.addAnnotatedClass(Checkout.class);
 
         ServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(configuration.getProperties()).build();

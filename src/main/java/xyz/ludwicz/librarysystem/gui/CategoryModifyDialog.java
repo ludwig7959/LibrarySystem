@@ -40,9 +40,9 @@ public class CategoryModifyDialog extends JDialog {
         contentPanel.add(categoryTextField);
         categoryTextField.setColumns(16);
 
-        JButton addButton = new JButton("수정");
-        addButton.setBounds(22, 70, 97, 23);
-        addButton.addActionListener(new ActionListener() {
+        JButton modifyButton = new JButton("수정");
+        modifyButton.setBounds(22, 70, 97, 23);
+        modifyButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String categoryName = categoryTextField.getText();
@@ -96,7 +96,7 @@ public class CategoryModifyDialog extends JDialog {
                 }
             }
         });
-        contentPanel.add(addButton);
+        contentPanel.add(modifyButton);
 
         setLocationRelativeTo(null);
     }
